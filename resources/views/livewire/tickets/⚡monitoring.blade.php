@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Ticket;
-use App\Models\Todo;
 use App\Models\Unit;
 use App\Services\AccessService;
 use Livewire\Component;
@@ -10,7 +9,6 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Attributes\Computed;
 use Mary\Traits\Toast;
-use Illuminate\Support\Facades\Auth;
 
 new class extends Component
 {
