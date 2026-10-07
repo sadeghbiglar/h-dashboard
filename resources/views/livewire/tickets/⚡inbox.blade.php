@@ -327,12 +327,7 @@ new class extends Component
 
                 // Plan 005: Auto-complete parent tasks where all child tickets are completed
                 foreach ($completedTaskIds as $taskId) {
-                    $incompleteCount = Ticket::where('task_id', $taskId)
-                        ->where('status', '!=', 'completed')
-                        ->count();
-                    if ($incompleteCount === 0) {
-                        \App\Models\Todo::where('id', $taskId)->update(['is_completed' => true]);
-                    }
+                    \App\Services\TicketService::syncParentTaskCompletion($taskId);
                 }
             }
 
@@ -615,6 +610,12 @@ new class extends Component
             return;
         }
 
+        if (! \App\Services\TicketService::canReject($ticket)) {
+            $this->dispatch('swal', ['title' => 'تیکت قبلاً بسته شده و قابل رد شدن نیست.', 'icon' => 'warning']);
+
+            return;
+        }
+
         \DB::transaction(function () use ($ticket) {
             $ticket->update([
                 'status' => 'rejected',
@@ -714,12 +715,9 @@ new class extends Component
 
                 // اگر وظیفه مرتبطی دارد و تمام تیکت‌های آن وظیفه بسته شده‌اند، وظیفه را تکمیل کن
                 if ($ticket->task_id) {
-                    $relatedTicket = \App\Models\Ticket::where('task_id', $ticket->task_id)
-                        ->where('status', '!=', 'completed')
-                        ->where('id', '!=', $ticket->id)
-                        ->count();
-                    if ($relatedTicket === 0) {
-                        $ticket->task->update(['is_completed' => true]);
+                    $wasTaskCompleted = (bool) Todo::query()->where('id', $ticket->task_id)->value('is_completed');
+                    \App\Services\TicketService::syncParentTaskCompletion($ticket->task_id);
+                    if (! $wasTaskCompleted && Todo::query()->where('id', $ticket->task_id)->value('is_completed')) {
                         $message .= " وظیفه مرتبط نیز تکمیل شد.";
                     }
                 }
