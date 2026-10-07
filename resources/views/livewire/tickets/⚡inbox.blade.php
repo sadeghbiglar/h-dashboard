@@ -411,33 +411,12 @@ new class extends Component
         // where any later `save()` tries to write a non-existent `task`
         // column. The `@var` above is what lets PHPStan see the model here —
         // without it the chain resolves to `Query\Builder` via `@mixin`.
-        $ticket->setRelation('task', $this->taskIfInScope($ticket->task_id, $accessibleIds));
+        $ticket->setRelation('task', \App\Services\TicketService::taskIfInScope($ticket->task_id, $accessibleIds));
 
         $this->showingTicket = $ticket;
         $this->showModal = true;
     }
 
-    /**
-     * The ticket's task, or null when it is outside the viewer's scope.
-     *
-     * Returns the row with a null relation when it is not visible, so every
-     * `@if($this->showingTicket->task)` block in the detail modal simply
-     * hides itself instead of rendering a foreign todo.
-     *
-     * @param  array<int>  $accessibleIds
-     */
-    private function taskIfInScope(?int $taskId, array $accessibleIds): ?Todo
-    {
-        if (! $taskId) {
-            return null;
-        }
-
-        return Todo::query()
-            ->whereKey($taskId)
-            ->where(fn ($q) => $q->whereIn('unit_id', $accessibleIds)
-                ->orWhere(fn ($q) => $q->whereNull('unit_id')->where('user_id', Auth::id())))
-            ->first();
-    }
 
     public function closeDetail(): void
     {

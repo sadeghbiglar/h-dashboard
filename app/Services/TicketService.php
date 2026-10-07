@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Ticket;
 use App\Models\Todo;
+use Illuminate\Support\Facades\Auth;
 
 class TicketService
 {
@@ -30,5 +31,25 @@ class TicketService
         if ($open === 0) {
             Todo::query()->where('id', $taskId)->update(['is_completed' => true]);
         }
+    }
+
+    /**
+     * وظیفه‌ی مرتبط با تیکت، فقط وقتی در اسکوپ کاربر باشد —
+     * #847: لینکِ todo به یک واحدِ خارج از scope نباید عنوان/تاریخ آن را لو بدهد.
+     * یک todo بدون unit برای صاحب خودش در اسکوپ است (#838 contract).
+     *
+     * @param  array<int>  $accessibleIds
+     */
+    public static function taskIfInScope(?int $taskId, array $accessibleIds): ?Todo
+    {
+        if (! $taskId) {
+            return null;
+        }
+
+        return Todo::query()
+            ->whereKey($taskId)
+            ->where(fn ($q) => $q->whereIn('unit_id', $accessibleIds)
+                ->orWhere(fn ($q) => $q->whereNull('unit_id')->where('user_id', Auth::id())))
+            ->first();
     }
 }
