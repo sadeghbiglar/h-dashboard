@@ -15,7 +15,6 @@ use Livewire\Attributes\Computed;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use App\Services\CacheInvalidationServiceInterface;
-use Illuminate\Support\Facades\Auth;
 
 new class extends Component
 {
@@ -327,12 +326,7 @@ new class extends Component
 
                 // Plan 005: Auto-complete parent tasks where all child tickets are completed
                 foreach ($completedTaskIds as $taskId) {
-                    $incompleteCount = Ticket::where('task_id', $taskId)
-                        ->where('status', '!=', 'completed')
-                        ->count();
-                    if ($incompleteCount === 0) {
-                        \App\Models\Todo::where('id', $taskId)->update(['is_completed' => true]);
-                    }
+                    \App\Services\TicketService::syncParentTaskCompletion($taskId);
                 }
             }
 
@@ -416,33 +410,12 @@ new class extends Component
         // where any later `save()` tries to write a non-existent `task`
         // column. The `@var` above is what lets PHPStan see the model here —
         // without it the chain resolves to `Query\Builder` via `@mixin`.
-        $ticket->setRelation('task', $this->taskIfInScope($ticket->task_id, $accessibleIds));
+        $ticket->setRelation('task', \App\Services\TicketService::taskIfInScope($ticket->task_id, $accessibleIds));
 
         $this->showingTicket = $ticket;
         $this->showModal = true;
     }
 
-    /**
-     * The ticket's task, or null when it is outside the viewer's scope.
-     *
-     * Returns the row with a null relation when it is not visible, so every
-     * `@if($this->showingTicket->task)` block in the detail modal simply
-     * hides itself instead of rendering a foreign todo.
-     *
-     * @param  array<int>  $accessibleIds
-     */
-    private function taskIfInScope(?int $taskId, array $accessibleIds): ?Todo
-    {
-        if (! $taskId) {
-            return null;
-        }
-
-        return Todo::query()
-            ->whereKey($taskId)
-            ->where(fn ($q) => $q->whereIn('unit_id', $accessibleIds)
-                ->orWhere(fn ($q) => $q->whereNull('unit_id')->where('user_id', Auth::id())))
-            ->first();
-    }
 
     public function closeDetail(): void
     {
@@ -615,6 +588,12 @@ new class extends Component
             return;
         }
 
+        if (! \App\Services\TicketService::canReject($ticket)) {
+            $this->dispatch('swal', ['title' => 'تیکت قبلاً بسته شده و قابل رد شدن نیست.', 'icon' => 'warning']);
+
+            return;
+        }
+
         \DB::transaction(function () use ($ticket) {
             $ticket->update([
                 'status' => 'rejected',
@@ -714,12 +693,9 @@ new class extends Component
 
                 // اگر وظیفه مرتبطی دارد و تمام تیکت‌های آن وظیفه بسته شده‌اند، وظیفه را تکمیل کن
                 if ($ticket->task_id) {
-                    $relatedTicket = \App\Models\Ticket::where('task_id', $ticket->task_id)
-                        ->where('status', '!=', 'completed')
-                        ->where('id', '!=', $ticket->id)
-                        ->count();
-                    if ($relatedTicket === 0) {
-                        $ticket->task->update(['is_completed' => true]);
+                    $wasTaskCompleted = (bool) Todo::query()->where('id', $ticket->task_id)->value('is_completed');
+                    \App\Services\TicketService::syncParentTaskCompletion($ticket->task_id);
+                    if (! $wasTaskCompleted && Todo::query()->where('id', $ticket->task_id)->value('is_completed')) {
                         $message .= " وظیفه مرتبط نیز تکمیل شد.";
                     }
                 }

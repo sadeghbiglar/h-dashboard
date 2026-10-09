@@ -137,42 +137,45 @@ new class extends Component
 
         $ticketCode = 'TK-' . strtoupper(Str::random(8));
 
-        $ticket = Ticket::create([
-            'ticket_code' => $ticketCode,
-            'user_id' => auth()->id(),
-            'unit_id' => $this->unit_id,
-            'subject' => $this->subject,
-            'content' => $this->content,
-            'priority' => $this->priority,
-            'status' => 'created',
-            'current_assignee_id' => null,
-            'task_id' => $this->task_id,
-        ]);
+        /** @var Ticket $ticket */
+        $ticket = null;
 
-        // اگر وظیفه‌ای انتخاب نشده، وظیفه جدید ایجاد کن.
-        // #847 (تصمیم محصول، گزینهٔ ج): وظیفه باید در اسکوپ سازنده باشد.
-        // رفتار قبلی همیشه واحد مقصد را می‌نوشت، حتی وقتی آن واحد در
-        // `accessibleUnitIds()` سازنده نبود — یعنی تیکت به todoای در
-        // واحدی لینک می‌شد که خودِ آن todo هم بلافاصله از اسکوپ خواننده
-        // خارج می‌شد و در read-side مخفی می‌شد.
-        if (! $this->task_id) {
-            $destinationInScope = in_array(
-                $this->unit_id,
-                app(\App\Services\AccessService::class)->accessibleUnitIds(),
-                true
-            );
-
-            $todo = Todo::create([
-                'title' => $this->subject,
-                'start_at' => now(),
-                'end_at' => now()->addWeek(),
-                'is_completed' => false,
-                'unit_id' => $destinationInScope ? $this->unit_id : session('current_unit_id', auth()->user()->person?->u_id),
+        \Illuminate\Support\Facades\DB::transaction(function () use ($ticketCode, &$ticket) {
+            $ticket = Ticket::create([
+                'ticket_code' => $ticketCode,
+                'user_id' => auth()->id(),
+                'unit_id' => $this->unit_id,
+                'subject' => $this->subject,
+                'content' => $this->content,
+                'priority' => $this->priority,
+                'status' => 'created',
+                'current_assignee_id' => null,
+                'task_id' => $this->task_id,
             ]);
-            $ticket->update(['task_id' => $todo->id]);
-        }
+
+            if (! $this->task_id) {
+                $destinationInScope = in_array(
+                    $this->unit_id,
+                    app(\App\Services\AccessService::class)->accessibleUnitIds(),
+                    true
+                );
+
+                $todo = Todo::create([
+                    'title' => $this->subject,
+                    'start_at' => now(),
+                    'end_at' => now()->addWeek(),
+                    'is_completed' => false,
+                    'unit_id' => $destinationInScope ? $this->unit_id : session('current_unit_id', auth()->user()->person?->u_id),
+                ]);
+                $ticket->update(['task_id' => $todo->id]);
+            }
+        });
 
         // ثبت فعالیت
+        // نکته: وظیفه‌ی تازه‌ساخته‌شده (در صورت انتخاب نشدن task_id توسط کاربر)
+        // باید در اسکوپ سازنده باشد — تصمیم #847 گزینهٔ ج: رفتار قبلی همیشه
+        // واحد مقصد را می‌نوشت، حتی وقتی آن واحد در accessibleUnitIds() سازنده
+        // نبود و todo از اسکوپ خواننده مخفی می‌شد.
         \App\Services\ActivityLogService::created(
             $ticket,
             "ایجاد تیکت {$ticketCode} به واحد " . $ticket->unit->name
