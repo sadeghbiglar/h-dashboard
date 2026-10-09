@@ -46,12 +46,14 @@ new class extends Component
 
     public bool $isCompletionModalOpen = false;
     public string $completionNote = '';
+    /** @var array<int, \Illuminate\Http\UploadedFile> */
     public array $completionFiles = [];
     public ?Ticket $showingTicket = null;
     public ?int $showingTicketId = null;
     public bool $showModal = false;
 
     // Bulk Actions
+    /** @var array<int, int> */
     public array $selectedTickets = [];
     public bool $selectAll = false;
     public bool $showBulkModal = false;
@@ -59,6 +61,7 @@ new class extends Component
     public string $bulkNote = '';
 
     // Data properties
+    /** @var array<int, array{id: int, name: string}> */
     public array $units = [];
 
     public bool $showHelpModal = false;
@@ -110,6 +113,7 @@ new class extends Component
         ];
     }
 
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Ticket> */
     #[Computed]
     public function tickets()
     {
@@ -183,6 +187,9 @@ new class extends Component
         $this->loadData();
     }
 
+    /** @param  string  $viewMode
+     *  @param  string  $statusFilter
+     */
     public function updateFilter($viewMode, $statusFilter = 'pending'): void
     {
         $this->viewMode = $viewMode;
@@ -202,6 +209,7 @@ new class extends Component
         $this->loadData();
     }
 
+    /** @param  string  $tab */
     public function setTab($tab): void
     {
         $this->currentTab = $tab;
@@ -221,6 +229,7 @@ new class extends Component
     }
 
     // ===== Bulk Actions =====
+    /** @param  int  $ticketId */
     public function toggleTicketSelection($ticketId): void
     {
         if (in_array($ticketId, $this->selectedTickets)) {
@@ -243,6 +252,7 @@ new class extends Component
         }
     }
 
+    /** @param  string  $action */
     public function openBulkModal($action): void
     {
         if (empty($this->selectedTickets)) {
@@ -368,11 +378,13 @@ new class extends Component
 
     // متدهای bulkCompleteTicket و bulkForwardTicket حذف شدند - منطق در executeBulkAction ادغام شد
 
+    /** @return array<int, int> */
     private function getAccessibleUnitIds(): array
     {
         return app(AccessService::class)->accessibleUnitIds();
     }
 
+    /** @param  string  $mode */
     public function switchView($mode): void
     {
         $this->viewMode = $mode;
@@ -380,11 +392,13 @@ new class extends Component
         $this->resetPage();
     }
 
+    /** @param  int  $ticketId */
     public function openCommentsFor($ticketId): void
     {
         $this->dispatch('openComments', ticketId: (int) $ticketId);
     }
 
+    /** @param  int  $id */
     public function showTicket($id): void
     {
         $accessibleIds = app(AccessService::class)->accessibleUnitIds();
@@ -424,6 +438,7 @@ new class extends Component
         $this->showModal = false;
     }
 
+    /** @param  int  $id */
     public function selectTargetUnit($id): void
     {
         // Issue #818: the name is resolved here, never taken from the client —
@@ -431,7 +446,7 @@ new class extends Component
         // so a client-supplied name was attacker-controlled audit-trail text.
         // The eligibility check still happens in forward()/submitAction(); an
         // unknown id simply resolves to an empty name here.
-        $this->targetUnitId = $id === null ? null : (int) $id;
+        $this->targetUnitId = (int) $id;
         $this->targetUnitName = (string) (Unit::query()->whereKey($this->targetUnitId)->value('name') ?? '');
         $this->unitSearch = '';
     }
@@ -513,6 +528,7 @@ new class extends Component
         return (string) ($name ?? '');
     }
 
+    /** @param  int  $ticketId */
     public function acceptTicket($ticketId): void
     {
         $accessibleIds = app(AccessService::class)->accessibleUnitIds();
@@ -572,6 +588,7 @@ new class extends Component
         $this->closeDetail();
     }
 
+    /** @param  int  $ticketId */
     public function rejectTicket($ticketId): void
     {
         // Issue #818: no API counterpart exists, so manage_unit_tickets is the
@@ -611,6 +628,7 @@ new class extends Component
         $this->closeDetail();
     }
 
+    /** @param  int  $id */
     public function openCompletionModal($id): void
     {
         $accessibleIds = app(AccessService::class)->accessibleUnitIds();
@@ -627,6 +645,7 @@ new class extends Component
         $this->isCompletionModalOpen = true;
     }
 
+    /** @param  int|null  $id */
     public function submitAction($id = null): void
     {
         // Issue #818: same gate as forward() — this path could complete a ticket
@@ -736,6 +755,7 @@ new class extends Component
         }
     }
 
+    /** @param  int  $index */
     public function removeFile($index): void
     {
         array_splice($this->completionFiles, $index, 1);

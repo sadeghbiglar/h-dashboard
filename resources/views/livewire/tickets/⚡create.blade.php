@@ -137,10 +137,10 @@ new class extends Component
 
         $ticketCode = 'TK-' . strtoupper(Str::random(8));
 
-        /** @var Ticket $ticket */
-        $ticket = null;
-
-        \Illuminate\Support\Facades\DB::transaction(function () use ($ticketCode, &$ticket) {
+        // DB::transaction() returns whatever the callback returns, so the
+        // transaction stays the single source of truth and $ticket is a
+        // Ticket for the type analyser instead of a `null`-declared reference.
+        $ticket = \Illuminate\Support\Facades\DB::transaction(function () use ($ticketCode) {
             $ticket = Ticket::create([
                 'ticket_code' => $ticketCode,
                 'user_id' => auth()->id(),
@@ -169,6 +169,8 @@ new class extends Component
                 ]);
                 $ticket->update(['task_id' => $todo->id]);
             }
+
+            return $ticket;
         });
 
         // ثبت فعالیت

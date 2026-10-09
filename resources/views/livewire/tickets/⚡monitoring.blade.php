@@ -34,6 +34,7 @@ new class extends Component
     public ?Ticket $showingTicket = null;
     public bool $modalDetail = false;
 
+    /** @var array<int, array{id: int, name: string}> */
     public array $filterUnits = [];
     public ?Unit $currentUnit = null;
 
@@ -63,6 +64,7 @@ new class extends Component
         $this->currentUnit = $this->selectedUnitId ? Unit::find($this->selectedUnitId) : null;
     }
 
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Ticket> */
     #[Computed]
     public function tickets()
     {
@@ -106,6 +108,7 @@ new class extends Component
         return $query->latest()->paginate(20);
     }
 
+    /** @param  int  $id */
     public function selectUnitForFilter($id): void
     {
         $this->selectedUnitId = $id;
@@ -114,6 +117,7 @@ new class extends Component
         $this->loadData();
     }
 
+    /** @param  int  $id */
     public function showTicket($id): void
     {
         // Check organizational scope
